@@ -22,7 +22,9 @@ namespace JwtGenerator.Extensions
                 ValidateIssuerSigningKey = true,
 
                 RequireExpirationTime = true,
-                ValidateLifetime = true
+                ValidateLifetime = true,
+
+                RoleClaimType = tokenOptions.RoleClaimType
             };
     }
 }

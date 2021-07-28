@@ -31,6 +31,7 @@ namespace JwtGenerator.Types
         public TokenOptions(string issuer,
                             string audience,
                             string rawSigningKey,
+                            string roleClaimType,
                             int tokenExpiryInMinutes = 5)
         {
             if (string.IsNullOrWhiteSpace(audience))
@@ -51,7 +52,7 @@ namespace JwtGenerator.Types
                 Encoding.ASCII.GetBytes(rawSigningKey)) ??
                 throw new ArgumentNullException(
                     $"{nameof(SigningKey)} is mandatory in order to generate a JWT!");
-
+            RoleClaimType = roleClaimType;
             TokenExpiryInMinutes = tokenExpiryInMinutes;
         }
 
@@ -61,7 +62,10 @@ namespace JwtGenerator.Types
 
         public string Audience { get; }
 
+        public string RoleClaimType { get; }
+
         public int TokenExpiryInMinutes { get; }
+
     }
 
     public struct TokenConstants

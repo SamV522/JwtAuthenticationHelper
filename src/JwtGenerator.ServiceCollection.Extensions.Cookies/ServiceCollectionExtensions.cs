@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace JwtGenerator.ServiceCollection.Extensions.Cookies
 {
@@ -17,7 +19,8 @@ namespace JwtGenerator.ServiceCollection.Extensions.Cookies
             this IServiceCollection services,
             TokenOptions tokenOptions,
             string applicationDiscriminator = null,
-            AuthUrlOptions authUrlOptions = null)
+            AuthUrlOptions authUrlOptions = null,
+            string cookieName = null)
         {
             if (tokenOptions == null)
             {
@@ -89,26 +92,55 @@ namespace JwtGenerator.ServiceCollection.Extensions.Cookies
                             $"{applicationName}-Auth1"
                         }));
 
-                options.LoginPath = authUrlOptions != null ?
-                    new PathString(authUrlOptions.LoginPath)
-                    : new PathString("/Account/Login");
-                options.LogoutPath = authUrlOptions != null ?
-                    new PathString(authUrlOptions.LogoutPath)
-                    : new PathString("/Account/Logout");
-                options.AccessDeniedPath = options.LoginPath;
-                options.ReturnUrlParameter = authUrlOptions?.ReturnUrlParameter ?? "returnUrl";
+                options.Cookie.Name = cookieName ?? TokenConstants.TokenName;
+
+                if (authUrlOptions.EnableRedirection)
+                {
+                    options.LoginPath = authUrlOptions != null ?
+                        new PathString(authUrlOptions.LoginPath)
+                        : new PathString("/Account/Login");
+                    options.LogoutPath = authUrlOptions != null ?
+                        new PathString(authUrlOptions.LogoutPath)
+                        : new PathString("/Account/Logout");
+                    options.AccessDeniedPath = options.LoginPath;
+                    options.ReturnUrlParameter = authUrlOptions?.ReturnUrlParameter ?? "returnUrl";
+                }
+                else
+                {
+                    options.Events = new CookieAuthenticationEvents
+                    {
+                        OnRedirectToAccessDenied = ReplaceRedirector(HttpStatusCode.Unauthorized, context => options.Events.RedirectToAccessDenied(context)),
+                        OnRedirectToLogin = ReplaceRedirector(HttpStatusCode.Unauthorized, context => options.Events.RedirectToLogin(context)),
+                        OnRedirectToLogout = ReplaceRedirector(HttpStatusCode.Unauthorized, context => options.Events.OnRedirectToLogout(context)),
+                        OnRedirectToReturnUrl = ReplaceRedirector(HttpStatusCode.OK, context => options.Events.OnRedirectToReturnUrl(context))
+                    };
+                }
             });
 
             return services;
         }
-    }
 
-    /// <summary>
-    /// A simple structure to store the configured login/logout
-    /// paths and the name of the return url parameter
-    /// </summary>
-    public sealed class AuthUrlOptions
+        private static Func<RedirectContext<CookieAuthenticationOptions>, Task> ReplaceRedirector(HttpStatusCode statusCode, Func<RedirectContext<CookieAuthenticationOptions>, Task> existingRedirector) =>
+            context =>
+            {
+                context.Response.StatusCode = (int)statusCode;
+                return Task.CompletedTask;
+            };
+    }
+}
+
+/// <summary>
+/// A simple structure to store the configured login/logout
+/// paths and the name of the return url parameter
+/// </summary>
+public sealed class AuthUrlOptions
     {
+        /// <summary>
+        /// Enable/Disable whether the user should be redirected in case of unauthenticated requests.
+        /// Default is false
+        /// </summary>
+        public Boolean EnableRedirection { get; set; } = false;
+
         /// <summary>
         /// The login path to redirect the user to incase of unauthenticated requests.
         /// Default is "/Account/Login"
@@ -126,5 +158,4 @@ namespace JwtGenerator.ServiceCollection.Extensions.Cookies
         /// Default is "returnUrl"
         /// </summary>
         public string ReturnUrlParameter { get; set; }
-    }
 }
